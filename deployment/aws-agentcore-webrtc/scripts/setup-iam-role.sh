@@ -182,6 +182,7 @@ cat > /tmp/runtime-policy.json << EOF
                 "secretsmanager:GetSecretValue"
             ],
             "Resource": [
+                "arn:aws:secretsmanager:${AWS_REGION}:${ACCOUNT_ID}:secret:ice-server-credentials-*",
                 "arn:aws:secretsmanager:${AWS_REGION}:${ACCOUNT_ID}:secret:turn-credentials-*"
             ]
         }

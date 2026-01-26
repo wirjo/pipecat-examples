@@ -326,20 +326,16 @@ def create_provider_from_env() -> TurnCredentialProvider:
     """
     Create TURN credential provider from environment variables.
 
-    Reads TURN_PROVIDER environment variable to determine which provider
+    Reads ICE_SERVER_PROVIDER environment variable to determine which provider
     to instantiate, then reads provider-specific configuration.
 
     Environment Variables:
-        TURN_PROVIDER: Provider type (cloudflare|twilio|static)
-        TURN_TTL: Credential TTL in seconds (default: 86400)
+        ICE_SERVER_PROVIDER: Provider type (cloudflare|twilio|static)
+        ICE_SERVER_TTL: Credential TTL in seconds (default: 86400)
 
-        For Cloudflare:
-            CLOUDFLARE_TURN_KEY_ID: Cloudflare TURN Key ID
-            CLOUDFLARE_TURN_API_TOKEN: Cloudflare API token
-
-        For Twilio:
-            TWILIO_ACCOUNT_SID: Twilio Account SID
-            TWILIO_AUTH_TOKEN: Twilio Auth Token
+        For Cloudflare/Twilio (dynamic providers):
+            ICE_SERVER_KEY_ID: Provider key (Cloudflare TURN Key ID or Twilio Account SID)
+            ICE_SERVER_API_TOKEN: Provider API token (Cloudflare API Token or Twilio Auth Token)
 
         For Static:
             ICE_SERVER_URLS: Comma-separated list of URLs
@@ -352,31 +348,31 @@ def create_provider_from_env() -> TurnCredentialProvider:
     Raises:
         ValueError: If configuration is missing or invalid
     """
-    provider_type = os.getenv("TURN_PROVIDER", "cloudflare").lower()
-    ttl = int(os.getenv("TURN_TTL", "86400"))
+    provider_type = os.getenv("ICE_SERVER_PROVIDER", "cloudflare").lower()
+    ttl = int(os.getenv("ICE_SERVER_TTL", "86400"))
 
     logger.info(f"Creating TURN provider: {provider_type} (TTL: {ttl}s)")
 
     if provider_type == "cloudflare":
-        turn_key_id = os.getenv("CLOUDFLARE_TURN_KEY_ID")
-        api_token = os.getenv("CLOUDFLARE_TURN_API_TOKEN")
+        key_id = os.getenv("ICE_SERVER_KEY_ID")
+        api_token = os.getenv("ICE_SERVER_API_TOKEN")
 
-        if not turn_key_id or not api_token:
+        if not key_id or not api_token:
             raise ValueError(
-                "Cloudflare provider requires CLOUDFLARE_TURN_KEY_ID and "
-                "CLOUDFLARE_TURN_API_TOKEN environment variables"
+                "Cloudflare provider requires ICE_SERVER_KEY_ID and "
+                "ICE_SERVER_API_TOKEN environment variables"
             )
 
-        return CloudflareTurnProvider(turn_key_id, api_token, ttl)
+        return CloudflareTurnProvider(key_id, api_token, ttl)
 
     elif provider_type == "twilio":
-        account_sid = os.getenv("TWILIO_ACCOUNT_SID")
-        auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+        account_sid = os.getenv("ICE_SERVER_KEY_ID")
+        auth_token = os.getenv("ICE_SERVER_API_TOKEN")
 
         if not account_sid or not auth_token:
             raise ValueError(
-                "Twilio provider requires TWILIO_ACCOUNT_SID and "
-                "TWILIO_AUTH_TOKEN environment variables"
+                "Twilio provider requires ICE_SERVER_KEY_ID and "
+                "ICE_SERVER_API_TOKEN environment variables"
             )
 
         return TwilioTurnProvider(account_sid, auth_token, ttl)
@@ -397,4 +393,4 @@ def create_provider_from_env() -> TurnCredentialProvider:
         return StaticTurnProvider(urls, username, credential, ttl)
 
     else:
-        raise ValueError(f"Unknown TURN provider: {provider_type}")
+        raise ValueError(f"Unknown ICE_SERVER provider: {provider_type}")

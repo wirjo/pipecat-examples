@@ -259,7 +259,7 @@ async def lifespan(app: FastAPI):
         logger.info(f"Using TURN provider: {provider.get_provider_name()}")
 
         # 2. Initialize Secrets Manager store (if configured)
-        secret_name = os.getenv("TURN_CREDENTIALS_SECRET", "turn-credentials")
+        secret_name = os.getenv("ICE_SERVER_CREDENTIALS_SECRET", "ice-server-credentials")
         region = os.getenv("AWS_REGION", "us-east-1")
 
         # Only initialize store if not using static provider
@@ -268,7 +268,7 @@ async def lifespan(app: FastAPI):
             logger.info(f"Initialized Secrets Manager store: {secret_name} (region: {region})")
 
         # 3. Initialize credential manager
-        refresh_buffer = int(os.getenv("TURN_REFRESH_BUFFER", "300"))
+        refresh_buffer = int(os.getenv("ICE_SERVER_REFRESH_BUFFER", "300"))
         credential_manager = TurnCredentialManager(
             provider=provider,
             refresh_buffer_seconds=refresh_buffer

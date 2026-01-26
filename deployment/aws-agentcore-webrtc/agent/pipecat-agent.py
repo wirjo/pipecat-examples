@@ -145,11 +145,11 @@ async def get_ice_servers():
     Returns:
         List of IceServer objects with current credentials
     """
-    turn_provider = os.getenv("TURN_PROVIDER", "static").lower()
+    ice_server_provider = os.getenv("ICE_SERVER_PROVIDER", "static").lower()
 
-    if turn_provider == "static":
+    if ice_server_provider == "static":
         # Legacy: read from env vars (backward compatibility)
-        logger.info("Using static TURN credentials from environment variables")
+        logger.info("Using static ICE server credentials from environment variables")
         raw_urls = os.getenv("ICE_SERVER_URLS")
         if not raw_urls:
             logger.error("ICE_SERVER_URLS not set in environment")
@@ -165,8 +165,8 @@ async def get_ice_servers():
         ]
     else:
         # Dynamic: read from Secrets Manager
-        logger.info(f"Fetching dynamic TURN credentials from Secrets Manager (provider: {turn_provider})")
-        secret_name = os.getenv("TURN_CREDENTIALS_SECRET", "turn-credentials")
+        logger.info(f"Fetching dynamic ICE server credentials from Secrets Manager (provider: {ice_server_provider})")
+        secret_name = os.getenv("ICE_SERVER_CREDENTIALS_SECRET", "ice-server-credentials")
         region = os.getenv("AWS_REGION", "us-east-1")
 
         store = TurnCredentialStore(secret_name, region)

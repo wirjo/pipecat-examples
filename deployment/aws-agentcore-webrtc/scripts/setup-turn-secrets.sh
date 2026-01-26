@@ -45,12 +45,12 @@ source server/.env
 
 # Set defaults
 AWS_REGION=${AWS_REGION:-us-east-1}
-TURN_PROVIDER=${TURN_PROVIDER:-cloudflare}
-TURN_CREDENTIALS_SECRET=${TURN_CREDENTIALS_SECRET:-turn-credentials}
+ICE_SERVER_PROVIDER=${ICE_SERVER_PROVIDER:-cloudflare}
+ICE_SERVER_CREDENTIALS_SECRET=${ICE_SERVER_CREDENTIALS_SECRET:-ice-server-credentials}
 
 echo "   Region: $AWS_REGION"
-echo "   Provider: $TURN_PROVIDER"
-echo "   Secret Name: $TURN_CREDENTIALS_SECRET"
+echo "   Provider: $ICE_SERVER_PROVIDER"
+echo "   Secret Name: $ICE_SERVER_CREDENTIALS_SECRET"
 echo ""
 
 ###############################################
@@ -74,9 +74,9 @@ echo ""
 
 echo "🔍 Checking if secret exists..."
 SECRET_EXISTS=false
-if aws secretsmanager describe-secret --secret-id "$TURN_CREDENTIALS_SECRET" --region "$AWS_REGION" > /dev/null 2>&1; then
+if aws secretsmanager describe-secret --secret-id "$ICE_SERVER_CREDENTIALS_SECRET" --region "$AWS_REGION" > /dev/null 2>&1; then
     SECRET_EXISTS=true
-    echo -e "${YELLOW}   ⚠️  Secret already exists: $TURN_CREDENTIALS_SECRET${NC}"
+    echo -e "${YELLOW}   ⚠️  Secret already exists: $ICE_SERVER_CREDENTIALS_SECRET${NC}"
     echo ""
     read -p "   Do you want to update the existing secret? (y/N): " -n 1 -r
     echo
@@ -95,7 +95,7 @@ echo ""
 
 echo "🔑 Preparing TURN credentials..."
 
-if [ "$TURN_PROVIDER" = "static" ]; then
+if [ "$ICE_SERVER_PROVIDER" = "static" ]; then
     # Use static credentials from .env
     echo "   Using static credentials from .env"
 
@@ -129,7 +129,7 @@ if [ "$TURN_PROVIDER" = "static" ]; then
 EOF
 )
 
-elif [ "$TURN_PROVIDER" = "cloudflare" ]; then
+elif [ "$ICE_SERVER_PROVIDER" = "cloudflare" ]; then
     echo "   Using Cloudflare provider (will be managed by intermediary server)"
     echo -e "${YELLOW}   ⚠️  For Cloudflare provider, credentials will be generated dynamically${NC}"
     echo "   Creating placeholder secret that will be updated by the server..."
@@ -148,7 +148,7 @@ elif [ "$TURN_PROVIDER" = "cloudflare" ]; then
 EOF
 )
 
-elif [ "$TURN_PROVIDER" = "twilio" ]; then
+elif [ "$ICE_SERVER_PROVIDER" = "twilio" ]; then
     echo "   Using Twilio provider (will be managed by intermediary server)"
     echo -e "${YELLOW}   ⚠️  For Twilio provider, credentials will be generated dynamically${NC}"
     echo "   Creating placeholder secret that will be updated by the server..."
@@ -168,7 +168,7 @@ EOF
 )
 
 else
-    echo -e "${RED}❌ Error: Unknown TURN provider: $TURN_PROVIDER${NC}"
+    echo -e "${RED}❌ Error: Unknown TURN provider: $ICE_SERVER_PROVIDER${NC}"
     echo "Supported providers: cloudflare, twilio, static"
     exit 1
 fi
@@ -184,7 +184,7 @@ echo "💾 Saving credentials to Secrets Manager..."
 if [ "$SECRET_EXISTS" = true ]; then
     # Update existing secret
     aws secretsmanager put-secret-value \
-        --secret-id "$TURN_CREDENTIALS_SECRET" \
+        --secret-id "$ICE_SERVER_CREDENTIALS_SECRET" \
         --secret-string "$SECRET_VALUE" \
         --region "$AWS_REGION" > /dev/null
 
@@ -192,8 +192,8 @@ if [ "$SECRET_EXISTS" = true ]; then
 else
     # Create new secret
     aws secretsmanager create-secret \
-        --name "$TURN_CREDENTIALS_SECRET" \
-        --description "TURN server credentials for WebRTC connections (provider: $TURN_PROVIDER)" \
+        --name "$ICE_SERVER_CREDENTIALS_SECRET" \
+        --description "TURN server credentials for WebRTC connections (provider: $ICE_SERVER_PROVIDER)" \
         --secret-string "$SECRET_VALUE" \
         --region "$AWS_REGION" > /dev/null
 
@@ -239,21 +239,21 @@ echo "Setup Complete!"
 echo "=========================================="
 echo ""
 echo "Secret Details:"
-echo "  Name: $TURN_CREDENTIALS_SECRET"
+echo "  Name: $ICE_SERVER_CREDENTIALS_SECRET"
 echo "  Region: $AWS_REGION"
-echo "  Provider: $TURN_PROVIDER"
-echo "  ARN: arn:aws:secretsmanager:$AWS_REGION:$ACCOUNT_ID:secret:$TURN_CREDENTIALS_SECRET"
+echo "  Provider: $ICE_SERVER_PROVIDER"
+echo "  ARN: arn:aws:secretsmanager:$AWS_REGION:$ACCOUNT_ID:secret:$ICE_SERVER_CREDENTIALS_SECRET"
 echo ""
 echo "Next Steps:"
 echo "  1. Ensure IAM role has Secrets Manager permissions (run setup-iam-role.sh)"
 echo "  2. Deploy AgentCore runtime: ./scripts/launch.sh"
 
-if [ "$TURN_PROVIDER" != "static" ]; then
+if [ "$ICE_SERVER_PROVIDER" != "static" ]; then
     echo "  3. Start intermediary server: cd server && python server.py"
     echo "     (Server will automatically refresh credentials in Secrets Manager)"
 fi
 
 echo ""
 echo "To verify the secret:"
-echo "  aws secretsmanager get-secret-value --secret-id $TURN_CREDENTIALS_SECRET --region $AWS_REGION --query SecretString --output text | jq"
+echo "  aws secretsmanager get-secret-value --secret-id $ICE_SERVER_CREDENTIALS_SECRET --region $AWS_REGION --query SecretString --output text | jq"
 echo ""
