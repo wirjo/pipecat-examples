@@ -5,10 +5,16 @@
 #
 
 import os
+import sys
 
 from bedrock_agentcore import BedrockAgentCoreApp
 from dotenv import load_dotenv
 from loguru import logger
+
+# Import TURN credential management
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from shared.turn_credential_store import TurnCredentialStore
+from shared.turn_providers import create_provider_from_env
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.frames.frames import LLMRunFrame
 from pipecat.pipeline.pipeline import Pipeline
@@ -132,18 +138,60 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
     yield {"status": "completed"}
 
 
+async def get_ice_servers():
+    """
+    Fetch TURN credentials dynamically from Secrets Manager or static config.
+
+    Returns:
+        List of IceServer objects with current credentials
+    """
+    turn_provider = os.getenv("TURN_PROVIDER", "static").lower()
+
+    if turn_provider == "static":
+        # Legacy: read from env vars (backward compatibility)
+        logger.info("Using static TURN credentials from environment variables")
+        raw_urls = os.getenv("ICE_SERVER_URLS")
+        if not raw_urls:
+            logger.error("ICE_SERVER_URLS not set in environment")
+            raise ValueError("ICE_SERVER_URLS environment variable is required")
+
+        urls = [u.strip() for u in raw_urls.split(",") if u.strip()]
+        return [
+            IceServer(
+                urls=urls,
+                username=os.getenv("ICE_SERVER_USERNAME"),
+                credential=os.getenv("ICE_SERVER_CREDENTIAL"),
+            )
+        ]
+    else:
+        # Dynamic: read from Secrets Manager
+        logger.info(f"Fetching dynamic TURN credentials from Secrets Manager (provider: {turn_provider})")
+        secret_name = os.getenv("TURN_CREDENTIALS_SECRET", "turn-credentials")
+        region = os.getenv("AWS_REGION", "us-east-1")
+
+        store = TurnCredentialStore(secret_name, region)
+        credentials = await store.get_credentials()
+
+        logger.info(
+            f"Retrieved TURN credentials: "
+            f"provider={credentials.provider}, "
+            f"urls={len(credentials.urls)}"
+        )
+
+        return [
+            IceServer(
+                urls=credentials.urls,
+                username=credentials.username,
+                credential=credentials.credential,
+            )
+        ]
+
+
 async def initialize_connection_and_run_bot(request: SmallWebRTCRequest):
     """Handle initial WebRTC connection setup and run the bot."""
 
-    raw_urls = os.getenv("ICE_SERVER_URLS")
-    urls = [u.strip() for u in raw_urls.split(",") if u.strip()]
-    ice_servers = [
-        IceServer(
-            urls=urls,
-            username=os.getenv("ICE_SERVER_USERNAME"),
-            credential=os.getenv("ICE_SERVER_CREDENTIAL"),
-        )
-    ]
+    # Fetch ICE servers dynamically
+    ice_servers = await get_ice_servers()
 
     transport = None
     runner_args = None

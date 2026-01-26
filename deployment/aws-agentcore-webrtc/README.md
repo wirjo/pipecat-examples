@@ -63,9 +63,7 @@ uv sync
    - `AWS_REGION`: The AWS region for the Amazon Bedrock LLM used by the agent
    - `DEEPGRAM_API_KEY`: Your Deepgram API key
    - `CARTESIA_API_KEY`: Your Cartesia API key
-   - `ICE_SERVER_URLS`: Your TURN server URLs
-   - `ICE_SERVER_USERNAME`: Your TURN server username
-   - `ICE_SERVER_CREDENTIAL`: Your TURN server credential
+   - **TURN Server Configuration** - see [TURN Credential Management](#turn-credential-management) below
 
    > Important Notes about TURN Server Configuration:
    >
@@ -100,6 +98,191 @@ This script automatically:
 
 > Technical Note:
 > Direct Code Deploy isn't used because some dependencies (like `numba`) lack `aarch64_manylinux2014` wheels.
+
+## TURN Credential Management
+
+This example includes a flexible, provider-agnostic TURN credential management system with automatic rotation for secure WebRTC connectivity.
+
+### Supported Providers
+
+#### 1. Cloudflare Calls (Recommended - Default)
+
+**Features:**
+- Automatic credential generation with short-lived tokens (configurable TTL, default: 24h)
+- Multiple transport options (UDP, TCP, TLS)
+- Multiple ports for firewall flexibility (3478, 80, 443, 5349)
+- Global infrastructure with low latency
+
+**Setup:**
+
+1. Get Cloudflare TURN credentials:
+   - Sign up at [Cloudflare Calls](https://developers.cloudflare.com/calls/)
+   - Create a TURN Key and obtain:
+     - `TURN_KEY_ID`
+     - `TURN_API_TOKEN`
+
+2. Configure in `server/.env` and `agent/.env`:
+   ```bash
+   TURN_PROVIDER=cloudflare
+   CLOUDFLARE_TURN_KEY_ID=your_turn_key_id
+   CLOUDFLARE_TURN_API_TOKEN=your_api_token
+   TURN_TTL=86400  # 24 hours (recommended)
+   ```
+
+3. Initialize AWS Secrets Manager:
+   ```bash
+   ./scripts/setup-turn-secrets.sh
+   ```
+
+4. Update IAM permissions (if not already done):
+   ```bash
+   ./scripts/setup-iam-role.sh
+   ```
+
+**How it works:**
+- **Intermediary server** (`server/server.py`): Generates fresh Cloudflare credentials on startup and refreshes them automatically 5 minutes before expiry
+- **AWS Secrets Manager**: Stores current credentials, updated by intermediary server
+- **AgentCore runtime** (`agent/pipecat-agent.py`): Fetches fresh credentials from Secrets Manager for each WebRTC connection
+
+#### 2. Twilio TURN Service
+
+**Setup:**
+
+1. Get Twilio credentials:
+   - Sign up at [Twilio](https://www.twilio.com/)
+   - Get your Account SID and Auth Token from the console
+
+2. Configure in `server/.env` and `agent/.env`:
+   ```bash
+   TURN_PROVIDER=twilio
+   TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxx
+   TWILIO_AUTH_TOKEN=your_auth_token
+   TURN_TTL=86400
+   ```
+
+3. Initialize Secrets Manager and update IAM (same as Cloudflare above)
+
+#### 3. Static Credentials (Backward Compatible)
+
+For development, testing, or TURN services without dynamic credential APIs.
+
+**Setup:**
+
+Configure in `agent/.env` and `server/.env`:
+```bash
+TURN_PROVIDER=static
+ICE_SERVER_URLS=turn:global.relay.metered.ca:80
+ICE_SERVER_USERNAME=your_username
+ICE_SERVER_CREDENTIAL=your_password
+```
+
+**Note:** Static credentials don't require Secrets Manager and work immediately without additional setup.
+
+### Configuration Reference
+
+**Common Configuration (both `agent/.env` and `server/.env`):**
+
+```bash
+# Provider selection
+TURN_PROVIDER=cloudflare  # Options: cloudflare (default), twilio, static
+
+# AWS Configuration
+AWS_REGION=us-east-1
+TURN_CREDENTIALS_SECRET=turn-credentials  # Secrets Manager secret name
+
+# Credential refresh timing
+TURN_REFRESH_BUFFER=300  # Refresh 5 minutes before expiry (seconds)
+TURN_TTL=86400           # Credential lifetime: 24 hours (seconds)
+```
+
+**Cloudflare-specific (`server/.env` only):**
+```bash
+CLOUDFLARE_TURN_KEY_ID=your_turn_key_id
+CLOUDFLARE_TURN_API_TOKEN=your_api_token
+```
+
+**Twilio-specific (`server/.env` only):**
+```bash
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your_auth_token
+```
+
+**Static provider (`agent/.env` and `server/.env`):**
+```bash
+ICE_SERVER_URLS=turn:server.example.com:80,turn:server.example.com:443
+ICE_SERVER_USERNAME=your_username
+ICE_SERVER_CREDENTIAL=your_password
+```
+
+### Architecture
+
+**System Components:**
+
+1. **Intermediary Server** (local, `server/server.py`):
+   - Runs credential manager with background refresh loop
+   - Generates fresh credentials from provider API (Cloudflare/Twilio)
+   - Updates AWS Secrets Manager with new credentials
+   - Returns credentials to browser clients via `/start` endpoint
+
+2. **AWS Secrets Manager**:
+   - Centralized, secure credential storage
+   - Updated by intermediary server when credentials refresh
+   - Read by AgentCore runtime for each connection
+
+3. **AgentCore Runtime** (AWS, `agent/pipecat-agent.py`):
+   - Fetches fresh credentials from Secrets Manager
+   - Creates WebRTC connections with current credentials
+   - Automatic failover to cached credentials if Secrets Manager unavailable
+
+**Credential Lifecycle:**
+
+```
+[Provider API]
+     ↓ (generate every 24h)
+[Intermediary Server]
+     ↓ (update)
+[AWS Secrets Manager]
+     ↓ (read)
+[AgentCore Runtime] → [WebRTC Connection]
+```
+
+### Troubleshooting
+
+**"Credential manager not initialized" error:**
+- Check `server/.env` has correct `TURN_PROVIDER` and provider credentials
+- Verify provider credentials are valid (test API access)
+- Check server logs for initialization errors
+
+**"Access denied to secret" error:**
+- Run `./scripts/setup-iam-role.sh` to add Secrets Manager permissions
+- Verify IAM role has `secretsmanager:GetSecretValue` permission
+- Check secret exists: `aws secretsmanager describe-secret --secret-id turn-credentials`
+
+**"Failed to refresh credentials" error:**
+- Check internet connectivity from intermediary server
+- Verify provider API credentials are correct
+- Check provider API status/rate limits
+- Server will continue using cached credentials temporarily
+
+**WebRTC connection fails with relay candidates:**
+- Verify TURN credentials are not expired
+- Check server logs for credential refresh status
+- Test TURN server manually using [Trickle ICE test](https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/)
+- For Cloudflare: Verify TURN Key has correct permissions
+
+**Static provider credentials not working:**
+- Set `TURN_PROVIDER=static` in both `.env` files
+- Verify `ICE_SERVER_URLS`, `ICE_SERVER_USERNAME`, `ICE_SERVER_CREDENTIAL` are set
+- Test credentials with [Trickle ICE](https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/)
+
+### Security Best Practices
+
+1. **Short-lived credentials**: Use 24h or less TTL for dynamic providers
+2. **Proactive refresh**: Credentials refresh 5 minutes before expiry (no connection disruption)
+3. **Secrets Manager**: All production credentials stored encrypted in AWS Secrets Manager
+4. **IAM least privilege**: AgentCore role has read-only access to secrets
+5. **No credentials in code**: All credentials loaded from environment variables
+6. **VPC deployment**: Use private subnets with NAT gateway for enhanced security
 
 ## ⚠️ Before Proceeding
 

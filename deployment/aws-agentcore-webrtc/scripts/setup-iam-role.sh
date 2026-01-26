@@ -174,6 +174,16 @@ cat > /tmp/runtime-policy.json << EOF
                 "arn:aws:bedrock:*::foundation-model/*",
                 "arn:aws:bedrock:${AWS_REGION}:${ACCOUNT_ID}:*"
             ]
+        },
+        {
+            "Sid": "SecretsManagerReadAccess",
+            "Effect": "Allow",
+            "Action": [
+                "secretsmanager:GetSecretValue"
+            ],
+            "Resource": [
+                "arn:aws:secretsmanager:${AWS_REGION}:${ACCOUNT_ID}:secret:turn-credentials-*"
+            ]
         }
     ]
 }

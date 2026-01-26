@@ -23,8 +23,15 @@ from fastapi.responses import RedirectResponse
 from loguru import logger
 from pipecat_ai_small_webrtc_prebuilt.frontend import SmallWebRTCPrebuiltUI
 
+# Import TURN credential management
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from shared.turn_credential_manager import TurnCredentialManager
+from shared.turn_credential_store import TurnCredentialStore
+from shared.turn_providers import create_provider_from_env
+
 load_dotenv(override=True)
 
+# Note: lifespan is defined later in the file and assigned at the bottom
 app = FastAPI()
 
 # Add CORS middleware
@@ -57,17 +64,9 @@ class IceServer(TypedDict, total=False):
     credential: Optional[str]
 
 
-raw_urls = os.getenv("ICE_SERVER_URLS")
-urls = [u.strip() for u in raw_urls.split(",") if u.strip()]
-ice_servers = [
-    IceServer(
-        urls=urls,
-        username=os.getenv("ICE_SERVER_USERNAME"),
-        credential=os.getenv("ICE_SERVER_CREDENTIAL"),
-    )
-]
-
-logger.info(f"Ice servers: {ice_servers}")
+# Global credential manager and store (initialized in lifespan)
+credential_manager: Optional[TurnCredentialManager] = None
+credential_store: Optional[TurnCredentialStore] = None
 
 
 @app.get("/", include_in_schema=False)
@@ -186,8 +185,31 @@ async def rtvi_start(request: Request):
     active_sessions[session_id] = request_data
 
     result: StartBotResult = {"sessionId": session_id}
+
+    # Return dynamic ICE server credentials if requested
     if request_data.get("enableDefaultIceServers"):
-        result["iceConfig"] = IceConfig(iceServers=ice_servers)
+        try:
+            # Get fresh credentials from credential manager
+            if credential_manager:
+                credentials = await credential_manager.get_credentials()
+
+                ice_servers = [
+                    IceServer(
+                        urls=credentials.urls,
+                        username=credentials.username,
+                        credential=credentials.credential,
+                    )
+                ]
+
+                logger.debug(f"Providing ICE servers: {len(credentials.urls)} URLs from {credentials.provider}")
+                result["iceConfig"] = IceConfig(iceServers=ice_servers)
+            else:
+                logger.warning("Credential manager not initialized, no ICE servers provided")
+                raise HTTPException(500, "TURN credentials not available")
+
+        except Exception as e:
+            logger.error(f"Failed to get ICE servers: {e}")
+            raise HTTPException(500, f"Failed to get ICE servers: {e}")
 
     return result
 
@@ -220,7 +242,66 @@ async def proxy_request(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """
+    Initialize and manage TURN credential manager lifecycle.
+
+    Sets up the credential manager with the configured provider,
+    starts the background refresh loop, and registers observers
+    to update AWS Secrets Manager when credentials change.
+    """
+    global credential_manager, credential_store
+
+    logger.info("Starting TURN credential management system")
+
+    try:
+        # 1. Initialize provider based on TURN_PROVIDER env var
+        provider = create_provider_from_env()
+        logger.info(f"Using TURN provider: {provider.get_provider_name()}")
+
+        # 2. Initialize Secrets Manager store (if configured)
+        secret_name = os.getenv("TURN_CREDENTIALS_SECRET", "turn-credentials")
+        region = os.getenv("AWS_REGION", "us-east-1")
+
+        # Only initialize store if not using static provider
+        if provider.get_provider_name() != "static":
+            credential_store = TurnCredentialStore(secret_name, region)
+            logger.info(f"Initialized Secrets Manager store: {secret_name} (region: {region})")
+
+        # 3. Initialize credential manager
+        refresh_buffer = int(os.getenv("TURN_REFRESH_BUFFER", "300"))
+        credential_manager = TurnCredentialManager(
+            provider=provider,
+            refresh_buffer_seconds=refresh_buffer
+        )
+
+        # 4. Register observer to update Secrets Manager (if store is configured)
+        if credential_store:
+            async def update_secrets(old_creds, new_creds):
+                logger.debug("Updating credentials in Secrets Manager")
+                await credential_store.update_credentials(new_creds)
+
+            credential_manager.add_observer(update_secrets)
+
+        # 5. Start background refresh
+        await credential_manager.start()
+
+        logger.info("TURN credential management system started successfully")
+
+    except Exception as e:
+        logger.error(f"Failed to initialize TURN credential management: {e}", exc_info=True)
+        logger.warning("Server will start but TURN credentials may not be available")
+
     yield  # Run app
+
+    # 6. Cleanup
+    logger.info("Shutting down TURN credential management system")
+    if credential_manager:
+        await credential_manager.shutdown()
+    logger.info("TURN credential management system shutdown complete")
+
+
+# Register lifespan with the app
+app.router.lifespan_context = lifespan
 
 
 if __name__ == "__main__":
