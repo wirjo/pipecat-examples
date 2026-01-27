@@ -11,8 +11,7 @@ from bedrock_agentcore import BedrockAgentCoreApp
 from dotenv import load_dotenv
 from loguru import logger
 
-# Import TURN credential management
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+# Import TURN credential management (shared directory is copied into agent/ during deployment)
 from shared.turn_credential_store import TurnCredentialStore
 from shared.turn_providers import create_provider_from_env
 from pipecat.audio.vad.silero import SileroVADAnalyzer
