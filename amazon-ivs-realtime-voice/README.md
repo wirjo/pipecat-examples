@@ -14,8 +14,14 @@ client and a server-side voice agent. It demonstrates two separate agent paths:
 
 You can also combine the frameworks. For example, Pipecat can own media and
 conversation flow while a Strands agent handles a tool-heavy reasoning step.
-That combined design was not validated. The sample does not create or delete AWS
-resources.
+See the [Pipecat Strands Agents voice sample](https://github.com/pipecat-ai/pipecat/blob/main/examples/voice/voice-aws-strands.py)
+for that processor pattern. The live runners in this repository focus on the
+separate Pipecat and native Strands paths. The sample does not create or delete
+AWS resources.
+
+Use the bundled [Amazon IVS voice-agent skill](skills/amazon-ivs-voice/) to wrap
+an existing Pipecat pipeline or Strands `BidiAgent` after the corresponding
+Amazon IVS transport or media adapter is available as an installed dependency.
 
 ## Architecture
 
@@ -77,6 +83,8 @@ record.
 - [`shared/`](shared/) contains the common live IVS harness.
 - [`pipecat/`](pipecat/) contains the Pipecat transport and cascaded pipeline.
 - [`strands/`](strands/) contains the Strands bidirectional stream adapters.
+- [`skills/amazon-ivs-voice/`](skills/amazon-ivs-voice/) contains an agent skill
+  for adding IVS to an existing Pipecat or Strands voice agent.
 - [`validation/`](validation/) contains the provider-neutral adapter contract.
 - [`evidence/`](evidence/) records the completed checks and their limits.
 

@@ -1,0 +1,24 @@
+{
+  "skill_name": "amazon-ivs-voice",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "This FastAPI Pipecat bot currently uses a WebSocket transport with Deepgram STT, a Bedrock model, Cartesia TTS, Silero VAD, and custom metrics. Wrap it with Amazon IVS WebRTC without changing the speech providers or pipeline behaviour. Add tests and runnable commands.",
+      "expected_output": "Select the Pipecat path, replace only the transport boundary with AmazonIVSTransport, preserve processor order and providers, define the trusted-backend IVS session contract, and add interruption and cleanup tests.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "My Strands BidiAgent uses Nova Sonic and three business tools. Add Amazon IVS browser audio to the existing service. The Amazon IVS media adapter is already available in the installed Strands package. Keep the tools and prompt unchanged.",
+      "expected_output": "Select the native Strands path, use the merged media adapter rather than copying aiortc code, preserve the BidiAgent configuration, wire disconnect and barge-in cleanup, and document live validation.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "This voice app is a Pipecat pipeline, but its reasoning component is StrandsAgentsProcessor. Connect it to Amazon IVS and do not create a second agent implementation.",
+      "expected_output": "Recognize this as the Pipecat transport path, keep StrandsAgentsProcessor inside the existing pipeline, place AmazonIVSTransport at the media boundary, and avoid the native Strands BidiAgent adapter.",
+      "files": []
+    }
+  ]
+}
+
