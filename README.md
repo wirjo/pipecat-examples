@@ -57,6 +57,7 @@ Ready to explore more? These are two of the most useful examples for common use 
 
 - **[word-wrangler-gemini-live](word-wrangler-gemini-live/)** - Web & phone based voice AI word games using Gemini Live
 - **[aws-strands](aws-strands/)** - Use AWS Strands for multi-step tasks
+- **[amazon-ivs-realtime-voice](amazon-ivs-realtime-voice/)** - Validated Amazon IVS Real-Time voice sample using Pipecat or Strands
 
 ### **Multimodal & Creative**
 

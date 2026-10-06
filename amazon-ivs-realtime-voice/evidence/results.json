@@ -1,0 +1,82 @@
+{
+  "validated_at": "2026-10-06",
+  "status": "validated_sample",
+  "production_ready": false,
+  "audio_observation": {
+    "non_silent_rms_threshold": 100,
+    "meaning": "A non-silent frame proves returned audio traversal only.",
+    "does_not_measure": [
+      "audio continuity",
+      "speech quality",
+      "latency"
+    ]
+  },
+  "live_checks": [
+    {
+      "name": "Direct IVS loopback",
+      "path": "440 Hz publisher -> IVS -> subscriber",
+      "non_silent_frames": 100,
+      "observed_frames": 100,
+      "passed": true,
+      "pass_scope": "audio traversal only"
+    },
+    {
+      "name": "Pipecat end-to-end",
+      "path": "PCM prompt -> IVS -> Transcribe -> Nova Lite -> Polly -> IVS",
+      "non_silent_frames": 86,
+      "observed_frames": 900,
+      "passed": true,
+      "pass_scope": "audio traversal only"
+    },
+    {
+      "name": "Strands end-to-end",
+      "path": "PCM prompt -> IVS -> Nova 2 Sonic -> IVS",
+      "non_silent_frames": 260,
+      "observed_frames": 750,
+      "passed": true,
+      "pass_scope": "audio traversal only"
+    }
+  ],
+  "local_checks": [
+    {
+      "name": "Shared harness",
+      "passed": 12,
+      "scope": "audio track behaviour and HTTPS live-video.net host and port validation"
+    },
+    {
+      "name": "Pipecat path",
+      "passed": 8
+    },
+    {
+      "name": "Strands path",
+      "passed": 14
+    },
+    {
+      "name": "Validation contract self-check",
+      "passed": 15,
+      "skipped": 2,
+      "scope": "reference driver only",
+      "skipped_checks": [
+        "provider handshake",
+        "live IVS marker"
+      ]
+    }
+  ],
+  "contract_adapter_checks": {
+    "pipecat": "not run; no contract driver included",
+    "strands": "not run; no contract driver included"
+  },
+  "not_established": [
+    "audio continuity",
+    "transcription accuracy",
+    "response quality",
+    "end-to-end latency targets",
+    "concurrency",
+    "load behaviour",
+    "production reliability"
+  ],
+  "providers_not_tested": [
+    "Cartesia",
+    "third-party speech models hosted on Amazon SageMaker"
+  ]
+}

@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "amazon-ivs-pipecat-sample"
+version = "0.1.0"
+description = "aiortc audio adapters for an Amazon IVS Pipecat voice sample"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "aiortc>=1.14.0,<2",
+    "av>=14,<17",
+    "numpy>=1.26.4,<3",
+    "pipecat-ai[aws,silero]==1.12.0",
+    "requests>=2.32,<3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9,<10",
+    "pytest-asyncio>=1,<2",
+    "ruff>=0.12,<1",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+asyncio_mode = "auto"
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "UP"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/amazon_ivs_pipecat"]
